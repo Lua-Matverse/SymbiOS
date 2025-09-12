@@ -1,0 +1,93 @@
+name: Deploy
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+concurrency:
+  group: deploy-symbios
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ship:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://${{ secrets.DOMAIN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node for frontend build
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend (Vite)
+        working-directory: frontend
+        run: |
+          npm ci || npm i
+          npm run build
+
+      - name: Prepare remote dir
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -euo pipefail
+            mkdir -p /opt/symbios
+
+      - name: Upload files
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "backend,frontend/dist,ops,*.md,*.txt"
+          target: "/opt/symbios"
+          strip_components: 0
+
+      - name: Compose up (build & run)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /opt/symbios/ops
+            cat > .env <<'EOF_ENV'
+            MATVERSE_API_KEY=${{ secrets.MATVERSE_API_KEY }}
+            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+            DOMAIN=${{ secrets.DOMAIN }}
+            EMAIL=${{ secrets.EMAIL }}
+            ADMIN_HASH=${{ secrets.ADMIN_HASH }}
+            CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}
+            REDIS_URL=${{ secrets.REDIS_URL }}
+            EOF_ENV
+            docker compose up -d --build --remove-orphans
+            docker compose ps
+
+      - name: Healthcheck
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -euo pipefail
+            for i in {1..20}; do
+              code=$(curl -sk -o /dev/null -w "%{http_code}" "https://${{ secrets.DOMAIN }}/api/health" || true)
+              if [ "$code" = "200" ]; then echo "OK"; exit 0; fi
+              sleep 3
+            done
+            echo "Healthcheck falhou"; exit 1
