@@ -1,0 +1,42 @@
+name: Deploy
+on:
+  workflow_dispatch:
+  push: { branches: ["main"] }
+jobs:
+  ship:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload files
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "backend,frontend,ops,*.md,*.txt"
+          target: "/opt/symbios"
+
+      - name: Build & Up (server)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/symbios/frontend
+            npm ci || npm i
+            npm run build
+            cd /opt/symbios/ops
+            cat > .env <<'EOF_ENV'
+            MATVERSE_API_KEY=${{ secrets.MATVERSE_API_KEY }}
+            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+            DOMAIN=${{ secrets.DOMAIN }}
+            EMAIL=${{ secrets.EMAIL }}
+            ADMIN_HASH=${{ secrets.ADMIN_HASH }}
+            CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}
+            REDIS_URL=${{ secrets.REDIS_URL }}
+            EOF_ENV
+            docker compose up -d --build
+            docker compose ps
