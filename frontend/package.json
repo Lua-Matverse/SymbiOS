@@ -1,0 +1,8 @@
+{
+  "name": "symbios-frontend",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "mkdir -p dist && echo '<html><body><h1>SymbiOS</h1></body></html>' > dist/index.html",
+    "test": "echo 'No tests'"
+  }
+}
