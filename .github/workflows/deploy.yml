@@ -83,10 +83,12 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+        # Ajuste a rota se o reverse proxy expuser /api/health
+        # Aqui usamos /health, que existe no backend atual.
           script: |
             set -euo pipefail
             for i in {1..20}; do
-              code=$(curl -sk -o /dev/null -w "%{http_code}" "https://${{ secrets.DOMAIN }}/api/health" || true)
+              code=$(curl -sk -o /dev/null -w "%{http_code}" "https://${{ secrets.DOMAIN }}/health" || true)
               if [ "$code" = "200" ]; then echo "OK"; exit 0; fi
               sleep 3
             done
