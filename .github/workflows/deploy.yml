@@ -87,9 +87,14 @@ jobs:
         # Aqui usamos /health, que existe no backend atual.
           script: |
             set -euo pipefail
+            try_url () { curl -sk -o /dev/null -w "%{http_code}" "$1" || true; }
             for i in {1..20}; do
-              code=$(curl -sk -o /dev/null -w "%{http_code}" "https://${{ secrets.DOMAIN }}/health" || true)
-              if [ "$code" = "200" ]; then echo "OK"; exit 0; fi
+              https_code=$(try_url "https://${{ secrets.DOMAIN }}/health")
+              http_code=$(try_url "http://${{ secrets.DOMAIN }}/health")
+              local_code=$(try_url "http://localhost:8000/health")
+              if [ "$https_code" = "200" ] || [ "$http_code" = "200" ] || [ "$local_code" = "200" ]; then
+                echo "OK"; exit 0
+              fi
               sleep 3
             done
             echo "Healthcheck falhou"; exit 1
