@@ -1,0 +1,45 @@
+version: "3.9"
+services:
+  api:
+    build: ../backend
+    environment:
+      MATVERSE_API_KEY: ${MATVERSE_API_KEY}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      LEDGER_PATH: /data/ledger.jsonl
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+    networks: [appnet]
+    volumes: [ "api_data:/data" ]
+
+  frontend:
+    build: ../frontend
+    networks: [appnet]
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on: [api, frontend]
+    ports: ["80:80","443:443"]
+    environment:
+      DOMAIN: ${DOMAIN}
+      EMAIL: ${EMAIL}
+      ADMIN_HASH: ${ADMIN_HASH}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - ../frontend/dist:/srv:ro
+    networks: [appnet]
+
+  redis:
+    image: redis:7-alpine
+    networks: [appnet]
+    volumes: [ "redis_data:/data" ]
+
+volumes:
+  api_data: {}
+  caddy_data: {}
+  caddy_config: {}
+  redis_data: {}
+
+networks:
+  appnet: { driver: bridge }
