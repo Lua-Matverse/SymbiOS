@@ -35,8 +35,25 @@ jobs:
         run: |
           npm ci || npm i
           npm run build
+          test -f dist/index.html || (echo "dist/index.html não gerado" && exit 1)
 
-      - name: Prepare remote dir
+      - name: Preflight secrets
+        run: |
+          req=(SSH_HOST SSH_USER SSH_KEY DOMAIN MATVERSE_API_KEY GEMINI_API_KEY)
+          miss=0
+          for k in "${req[@]}"; do
+            if [ -z "${!k}" ]; then echo "❌ Missing secret: $k"; miss=1; fi
+          done
+          [ "$miss" = "0" ] || (echo "Secrets faltando"; exit 1)
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          MATVERSE_API_KEY: ${{ secrets.MATVERSE_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Prepare remote dir (home)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -44,7 +61,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             set -euo pipefail
-            mkdir -p /opt/symbios
+            mkdir -p ~/symbios
 
       - name: Upload files
         uses: appleboy/scp-action@v0.1.7
@@ -53,7 +70,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           source: "backend,frontend/dist,ops,*.md,*.txt"
-          target: "/opt/symbios"
+          target: "~/symbios"
           strip_components: 0
 
       - name: Compose up (build & run)
@@ -64,7 +81,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             set -euo pipefail
-            cd /opt/symbios/ops
+            cd ~/symbios/ops
             cat > .env <<'EOF_ENV'
             MATVERSE_API_KEY=${{ secrets.MATVERSE_API_KEY }}
             GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
@@ -74,6 +91,7 @@ jobs:
             CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}
             REDIS_URL=${{ secrets.REDIS_URL }}
             EOF_ENV
+            (docker compose version >/dev/null 2>&1) || echo "⚠️ docker compose não encontrado. Garanta Docker+Compose instalados."
             docker compose up -d --build --remove-orphans
             docker compose ps
 
