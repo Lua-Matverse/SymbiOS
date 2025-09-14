@@ -1,0 +1,8 @@
+{
+  "name": "xplore",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "icons": "bash ../../scripts/make-icons.sh apps/xplore/public/branding/mv-xplore-logo.png apps/xplore/public/icons"
+  }
+}
