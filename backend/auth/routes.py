@@ -19,10 +19,10 @@ from .jwt_handler import (
 )
 from .dependencies import get_current_user, get_current_active_user
 
-# Get database from main app
-from ..server import db
-
 router = APIRouter(prefix="/auth", tags=["authentication"])
+
+# Database will be injected from main app
+db = None
 
 # OAuth configuration
 OAUTH_CONFIG = {
