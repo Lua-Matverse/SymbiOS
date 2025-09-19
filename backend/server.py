@@ -57,6 +57,12 @@ async def get_status_checks():
 
 # Include the router in the main app
 app.include_router(api_router)
+
+# Set up database dependency injection for auth module
+from auth import dependencies, routes
+dependencies.db = db
+routes.db = db
+
 app.include_router(auth_router, prefix="/api")
 
 app.add_middleware(
