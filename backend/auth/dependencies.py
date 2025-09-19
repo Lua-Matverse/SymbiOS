@@ -6,10 +6,15 @@ from .jwt_handler import verify_token, TokenData
 from .models import User
 import os
 
-# Get database from main app (we'll inject this)
-from ..server import db
-
 security = HTTPBearer()
+
+def get_database():
+    """Get database instance - will be injected by main app"""
+    # This will be set by the main app
+    pass
+
+# We'll set this from the main server.py file
+db = None
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security)
